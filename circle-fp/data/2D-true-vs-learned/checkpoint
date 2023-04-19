@@ -1,0 +1,2 @@
+model_checkpoint_path: "sphere2D"
+all_model_checkpoint_paths: "sphere2D"
