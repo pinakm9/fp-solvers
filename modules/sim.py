@@ -6,6 +6,7 @@ import pandas as pd
 import utility as ut
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+import integrator as it
 
 DTYPE = 'float32'
 
@@ -314,7 +315,7 @@ class MCProb:
 
 
 
-class FKSim3_2:
+class FKSquare:
     """
     Description: Feynman-Kac simulation for a 2D grid taking integration 
     in the other dimension into consideration
@@ -347,7 +348,7 @@ class FKSim3_2:
             
         return np.concatenate(data, axis=0)
 
-    #@tf.function
+    @tf.function
     def h_mu(self, X):
         x, y, z = tf.split(X, [1, 1, 1], axis=-1)
         with tf.GradientTape() as tape:
@@ -355,11 +356,17 @@ class FKSim3_2:
             n_ = self.net(x, y, z) 
         grad_n = tf.concat(tape.gradient(n_, [x, y, z]), axis=-1)
         return self.sigma**2*grad_n - self.mu(X)
+    
+    #@tf.function
+    def get_endpt(self, n_steps, dt, X, dW):
+        for step in range(n_steps):
+                    X += self.h_mu(X).numpy() * dt + self.sigma * dW[step]
+        return X
 
         
 
     @ut.timer
-    def make_plot(self, n_steps, dt, n_repeats, i, j, k):
+    def calc_2D_prob(self, n_steps, dt, n_repeats, i, j, k, method, **kwargs):
         """
         Description: propagates particles according to the SDE and stores the final positions
 
@@ -369,43 +376,45 @@ class FKSim3_2:
             n_repeats: number of simulations per grid point
             i: x dimension
             j: y dimension 
-            k: dimension to be integrated out 
+            k: dimension to be integrated out
+            method: quadrature method
+            **kwargs: keyword arguments for quadrature
         """
         x = np.linspace(self.grid.mins[i], self.grid.maxs[i], num=self.n_subdivs+1).astype(self.dtype)[1:]
         y = np.linspace(self.grid.mins[j], self.grid.maxs[j], num=self.n_subdivs+1).astype(self.dtype)[1:]
-        z = np.linspace(self.grid.mins[k], self.grid.maxs[k], num=self.n_int_subdivs+1).astype(self.dtype).reshape(-1, 1)
+        domain = [self.grid.mins[k], self.grid.maxs[k]]
+        num = self.n_int_subdivs
+        if method == "Trapezoidal":
+            q = it.Trapezoidal(domain, num, self.dtype)
+        elif method == "Simpson_1_3":
+            q = it.Simpson_1_3(domain, num, self.dtype)
+        elif method == "Simpson_3_8":
+            q = it.Simpson_3_8(domain, num, self.dtype)
+        elif method == "Gauss_Legendre":
+            q = it.Gauss_Legendre(domain, num, kwargs['d'], self.dtype)
+
+        z = q.nodes.reshape(-1, 1)
         ones = tf.ones_like(z)
         prob = np.zeros((self.n_subdivs, self.n_subdivs))
-
         self.n_steps = n_steps
         self.final_time = dt * n_steps
-        weights = np.ones_like(z)
-        for iw, w in enumerate(weights):
-            if iw % 2 == 0 and iw > 0:
-                weights[iw][0] = 2.
-            else:
-                weights[iw][0] = 4.
-#         weights[0][0] = 0.5
-#         weights[-1][0] = 0.5
-        weights /= 3.
-
-        h = (self.grid.maxs[k] - self.grid.mins[k]) / self.n_int_subdivs
-
+        dW = np.random.normal(scale=np.sqrt(dt), size=(n_steps, n_repeats*len(z), 3)).astype(self.dtype)
         start = time.time()
         for m in range(self.n_subdivs):
             for n in range(self.n_subdivs):
                 X0 = tf.concat([e for _, e in sorted(zip([i, j, k], [x[m]*ones, y[n]*ones, z]))], axis=-1).numpy()
                 p_inf = self.sol(X0)
                 X = np.repeat(X0, repeats=n_repeats, axis=0)
-                for step in range(n_steps):
-                    drift = self.h_mu(X)
-                    X += drift.numpy() * dt + self.sigma * np.random.normal(scale=np.sqrt(dt), size=X.shape)
-                    if step%10 == 0:
-                        print('grid_index = {}, step = {}, time taken = {:.4f}'.format((m, n), step, time.time() - start), end='\r')
+                X = self.get_endpt(n_steps, dt, X, dW)
+                print('grid_index = {}, time taken = {:.4f}'.format((m, n), time.time() - start), end='\r')
                 h0 = tf.reduce_mean(self.h0(X).reshape((-1, n_repeats)), axis=-1, keepdims=True).numpy()
-                prob[m][n] = np.sum(h0 * p_inf * weights) * h 
-        
+                prob[m][n] = q.quad(evals=h0*p_inf) 
         return prob
+
+
+
+
+
 
 
         
