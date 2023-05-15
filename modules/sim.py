@@ -315,29 +315,42 @@ class MCProb:
 
 
 
-class FKSquare:
+class FKRec:
     """
     Description: Feynman-Kac simulation for a 2D grid taking integration 
     in the other dimension into consideration
     """
-    def __init__(self, save_folder, n_subdivs, n_int_subdivs, mu, sigma, n_theta, grid,\
-                h0, dtype='float32') -> None:
+    def __init__(self, save_folder, n_subdivs, n_int_subdivs, mu, sigma, n_theta, grid, log_p0, dtype='float32', max_comp=1e5):
         self.grid = grid 
         self.mu = mu 
         self.sigma = sigma
         self.net = n_theta
+        self.n_int_subdivs = n_int_subdivs 
         self.n_theta = lambda X: n_theta(*tf.split(X, 3, axis=-1)).numpy()
         self.n_subdivs = n_subdivs
-        self.h0 = h0
+        self.log_p0 = log_p0
         self.dtype = dtype
         self.save_folder = save_folder
         self.dim = 3
-        self.n_int_subdivs = n_int_subdivs
+        self.max_comp = int(max_comp)
 
-    def sol(self, X):
-        l = len(X)
-        m = int(1e5)
-        M = int(np.ceil(l / m))
+    def h0(self, X):
+        m = self.max_comp
+        M = int(np.ceil(len(X) / m))
+        data = []
+        for i in range(M):
+            if i < M-1:
+                x, y, z = tf.split(X[i*m: (i+1)*m], [1, 1, 1], axis=-1)
+            else:
+                x, y, z = tf.split(X[i*m:], [1, 1, 1], axis=-1)
+            log_p0 = self.log_p0(x, y, z).numpy()#(- (x**2 + y**2 + z**2) / (2.*r**2)).numpy()
+            log_pinf = self.net(x, y, z).numpy()
+            data.append(np.exp(log_p0 - log_pinf)) #/ (2. * np.pi * r**2) ** (1.5))  
+        return np.concatenate(data, axis=0) 
+
+    def p_inf(self, X):
+        m = self.max_comp
+        M = int(np.ceil(len(X) / m))
         data = []
         for i in range(M):
             if i < M-1:
@@ -345,7 +358,6 @@ class FKSquare:
             else:
                 x = X[i*m:] 
             data.append(np.exp(self.n_theta(x)))
-            
         return np.concatenate(data, axis=0)
 
     @tf.function
@@ -358,15 +370,64 @@ class FKSquare:
         return self.sigma**2*grad_n - self.mu(X)
     
     #@tf.function
-    def get_endpt(self, n_steps, dt, X, dW):
-        for step in range(n_steps):
-                    X += self.h_mu(X).numpy() * dt + self.sigma * dW[step]
-        return X
+    def get_endpt(self, n_steps, dt, X, dW): 
+        m = self.max_comp
+        M = int(np.ceil(len(X) / m))
+        data = []
+        for i in range(M):
+            for step in range(n_steps):
+                if i < M-1:
+                    x = X[i*m: (i+1)*m]
+                    noise = dW[step][i*m: (i+1)*m]
+                else:
+                    x = X[i*m:]
+                    noise = dW[step][i*m:]
+                x += self.h_mu(x).numpy() * dt + self.sigma * noise
+            data.append(x)
+        return np.concatenate(data, axis=0)
+    
+    @ut.timer
+    def set_filter(self, i, j, z):
+        k = list({0, 1, 2}-{i, j})[0]
+        # load the ensemble
+        pts = np.genfromtxt(self.filter, delimiter=',')
+        # set up rectangular boxes 
+        mins = np.array([self.grid.mins[i], self.grid.mins[j], self.grid.mins[k]]).astype(self.dtype)
+        hi = (self.grid.maxs[i] - self.grid.mins[i]) / self.n_subdivs
+        hj = (self.grid.maxs[j] - self.grid.mins[j]) / self.n_subdivs
+        hk = (self.grid.maxs[k] - self.grid.mins[k]) / self.n_int_subdivs
+        h = np.array([hi, hj, hk]).astype(self.dtype)
+        # find box coordinates for every point
+        self.boxes = ((pts[:, [i, j, k]] - mins) / h).astype(int)
+        # remove repeating coordinates
+        self.boxes = np.unique(self.boxes, axis=0)
+        # sort boxes coordinates by z-value
+        #self.boxes = self.boxes[self.boxes[:, 2].argsort()]
+        # print(self.boxes)
+        # non-uniform to uniform zmap
+        self.zmap = ((z.flatten() - mins[2]) / h[2]).astype(int)
+        # print('boxes = {}'.format(self.boxes))
+        # print('zmap = {}'.format(self.zmap))
 
-        
+    def prune_z(self, m, n, z):
+        # # find z indices that contribute
+        good_z = self.boxes[np.where((self.boxes[:, 0] == m) * (self.boxes[:, 1] == n))][:,-1] #np.unique(self.boxes[:, 2], axis=0)#
+        # print('good_z = {}, {}, {}'.format(m, n, good_z))
+        # convert to z values using zmap
+        zl = list(z)
+        for i in range(len(z)-1, -1, -1): # pop indices in reversed order
+            if self.zmap[i] not in good_z:
+                zl.pop(i)
+        z_ = np.array(zl).astype(self.dtype).reshape(-1, 1)
+        if len(z_) > 1:
+            return z_ 
+        else :
+            return z+0.
+     
+
 
     @ut.timer
-    def calc_2D_prob(self, n_steps, dt, n_repeats, i, j, k, method, **kwargs):
+    def calc_2D_prob(self, n_steps, dt, n_repeats, i, j, filter, method, **kwargs):
         """
         Description: propagates particles according to the SDE and stores the final positions
 
@@ -377,13 +438,18 @@ class FKSquare:
             i: x dimension
             j: y dimension 
             k: dimension to be integrated out
+            filter: None or path to reference ensemble for filtering
             method: quadrature method
             **kwargs: keyword arguments for quadrature
         """
+        self.filter = filter
+        k = list({0, 1, 2}-{i, j})[0]
         x = np.linspace(self.grid.mins[i], self.grid.maxs[i], num=self.n_subdivs+1).astype(self.dtype)[1:]
         y = np.linspace(self.grid.mins[j], self.grid.maxs[j], num=self.n_subdivs+1).astype(self.dtype)[1:]
+        
+        # set up integration
         domain = [self.grid.mins[k], self.grid.maxs[k]]
-        num = self.n_int_subdivs
+        num = kwargs['num']
         if method == "Trapezoidal":
             q = it.Trapezoidal(domain, num, self.dtype)
         elif method == "Simpson_1_3":
@@ -392,23 +458,30 @@ class FKSquare:
             q = it.Simpson_3_8(domain, num, self.dtype)
         elif method == "Gauss_Legendre":
             q = it.Gauss_Legendre(domain, num, kwargs['d'], self.dtype)
-
+        
         z = q.nodes.reshape(-1, 1)
-        ones = tf.ones_like(z)
         prob = np.zeros((self.n_subdivs, self.n_subdivs))
         self.n_steps = n_steps
         self.final_time = dt * n_steps
-        dW = np.random.normal(scale=np.sqrt(dt), size=(n_steps, n_repeats*len(z), 3)).astype(self.dtype)
         start = time.time()
-        for m in range(self.n_subdivs):
-            for n in range(self.n_subdivs):
-                X0 = tf.concat([e for _, e in sorted(zip([i, j, k], [x[m]*ones, y[n]*ones, z]))], axis=-1).numpy()
-                p_inf = self.sol(X0)
+     
+        if filter is not None:
+            self.set_filter(i, j, z)
+            nonzero_boxes = np.unique(self.boxes[:, [0, 1]], axis=0)
+        else:
+            nonzero_boxes = [(m, n) for m in range(self.n_subdivs) for n in range(self.n_subdivs)]
+
+        
+        for m, n in nonzero_boxes:
+                pruned_z = z
+                ones = tf.ones_like(pruned_z)
+                X0 = tf.concat([e for _, e in sorted(zip([i, j, k], [x[m]*ones, y[n]*ones, pruned_z]))], axis=-1).numpy()
                 X = np.repeat(X0, repeats=n_repeats, axis=0)
+                dW = np.random.normal(scale=np.sqrt(dt), size=(n_steps, X.shape[0], 3)).astype(self.dtype)
                 X = self.get_endpt(n_steps, dt, X, dW)
                 print('grid_index = {}, time taken = {:.4f}'.format((m, n), time.time() - start), end='\r')
                 h0 = tf.reduce_mean(self.h0(X).reshape((-1, n_repeats)), axis=-1, keepdims=True).numpy()
-                prob[m][n] = q.quad(evals=h0*p_inf) 
+                prob[m][n] = q.quad(evals=h0*self.p_inf(X0)) 
         return prob
 
 
