@@ -326,7 +326,6 @@ class FKRec:
         self.sigma = sigma
         self.net = n_theta
         self.n_int_subdivs = n_int_subdivs 
-        self.n_theta = lambda X: n_theta(*tf.split(X, 3, axis=-1)).numpy()
         self.n_subdivs = n_subdivs
         self.log_p0 = log_p0
         self.dtype = dtype
@@ -340,11 +339,11 @@ class FKRec:
         data = []
         for i in range(M):
             if i < M-1:
-                x, y, z = tf.split(X[i*m: (i+1)*m], [1, 1, 1], axis=-1)
+                x = X[i*m: (i+1)*m]
             else:
-                x, y, z = tf.split(X[i*m:], [1, 1, 1], axis=-1)
-            log_p0 = self.log_p0(x, y, z).numpy()#(- (x**2 + y**2 + z**2) / (2.*r**2)).numpy()
-            log_pinf = self.net(x, y, z).numpy()
+                x = X[i*m:]
+            log_p0 = self.log_p0(x).numpy()#(- (x**2 + y**2 + z**2) / (2.*r**2)).numpy()
+            log_pinf = self.net(x).numpy()
             data.append(np.exp(log_p0 - log_pinf)) #/ (2. * np.pi * r**2) ** (1.5))  
         return np.concatenate(data, axis=0) 
 
@@ -357,7 +356,7 @@ class FKRec:
                 x = X[i*m: (i+1)*m]
             else:
                 x = X[i*m:] 
-            data.append(np.exp(self.n_theta(x)))
+            data.append(np.exp(self.net(x)))
         return np.concatenate(data, axis=0)
 
     @tf.function
@@ -479,7 +478,7 @@ class FKRec:
                 X = np.repeat(X0, repeats=n_repeats, axis=0)
                 dW = np.random.normal(scale=np.sqrt(dt), size=(n_steps, X.shape[0], 3)).astype(self.dtype)
                 X = self.get_endpt(n_steps, dt, X, dW)
-                print('grid_index = {}, time taken = {:.4f}'.format((m, n), time.time() - start), end='\r')
+                print('grid_index = {}, time taken = {:.4f}'.format((m, n), time.time() - start))
                 h0 = tf.reduce_mean(self.h0(X).reshape((-1, n_repeats)), axis=-1, keepdims=True).numpy()
                 prob[m][n] = q.quad(evals=h0*self.p_inf(X0)) 
         return prob
