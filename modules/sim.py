@@ -1,3 +1,4 @@
+from typing import Any
 from matplotlib import projections
 import tensorflow as tf
 import numpy as np 
@@ -474,7 +475,8 @@ class FKRec:
         for m, n in nonzero_boxes:
                 pruned_z = z
                 ones = tf.ones_like(pruned_z)
-                X0 = tf.concat([e for _, e in sorted(zip([i, j, k], [x[m]*ones, y[n]*ones, pruned_z]))], axis=-1).numpy()
+                a, b = x[m] + self.grid.h[i]/2., y[n] + self.grid.h[j]/2.
+                X0 = tf.concat([e for _, e in sorted(zip([i, j, k], [a*ones, b*ones, pruned_z]))], axis=-1).numpy()
                 X = np.repeat(X0, repeats=n_repeats, axis=0)
                 dW = np.random.normal(scale=np.sqrt(dt), size=(n_steps, X.shape[0], 3)).astype(self.dtype)
                 X = self.get_endpt(n_steps, dt, X, dW)
@@ -618,4 +620,86 @@ class Evolution:
         ax.set_xlabel('time')
         plt.savefig(self.save_folder + '/exit_prob.png')
         
+
+
+class Exit:
+    def __init__(self, mu, sigma, start_domain, end_domain, save_folder, tag='', dtype='float32', max_comp=int(1e4)):
+        self.mu = mu
+        self.sigma = sigma
+        self.start_domain = np.array(start_domain)
+        self.end_domain = np.array(end_domain)
+        self.save_folder = save_folder
+        self.dim = len(self.start_domain[0])
+        self.tag = tag
+        self.dtype = dtype
+        self.max_comp = max_comp
+
+
+    @ut.timer
+    def generate_trajectories(self, num, dt, n_steps, net=None, grid=False):
+        if net is not None:
+            self.net = net
+            mu = lambda X: self.h_mu(X).numpy()
+            self.dtype = net.dtype
+        else:
+            mu = self.mu
+        
+        if grid:
+            X = np.zeros((n_steps+1, int(num**self.dim), self.dim)).astype(self.dtype)
+            x = np.linspace(self.start_domain[0][0], self.start_domain[1][0], num=num).astype(self.dtype)
+            y = np.linspace(self.start_domain[0][1], self.start_domain[1][1], num=num).astype(self.dtype)
+            if self.dim == 3: 
+                z = np.linspace(self.start_domain[0][2], self.start_domain[1][2], num=num).astype(self.dtype)
+                x, y, z = np.meshgrid(x, y, z)
+                X[0, :, :] = np.concatenate([x.reshape(-1, 1), y.reshape(-1, 1), z.reshape(-1, 1)], axis=-1)
+            else:
+                x, y = np.meshgrid(x, y)
+                X[0, :, :] = np.concatenate([x.reshape(-1, 1), y.reshape(-1, 1)], axis=-1)
+        else:
+            X = np.zeros((n_steps+1, num, self.dim)).astype(self.dtype)
+            X[0, :, :] = np.random.uniform(low=self.start_domain[0], high=self.end_domain[1], size=(num, self.dim)).astype(self.dtype)
+        dW = np.random.normal(scale=np.sqrt(dt), size=(n_steps, X.shape[1], self.dim)).astype(self.dtype)
+        m = self.max_comp
+        M = int(np.ceil(X.shape[1] / m))
+        for step in range(n_steps):
+            for i in range(M):
+                if i < M-1:
+                    x = X[step, i*m: (i+1)*m, :]
+                    noise = dW[step, i*m: (i+1)*m, :]
+                    X[step+1, i*m: (i+1)*m, :] = x + self.h_mu(x).numpy() * dt + self.sigma * noise
+                else:
+                    x = X[step, i*m:, :]
+                    noise = dW[step, i*m:, :]
+                    X[step+1, i*m:, :] = x + self.h_mu(x).numpy() * dt + self.sigma * noise
+        np.save('{}/{}_exit_trajectories.npy'.format(self.save_folder, self.tag), X)
+        self.n_steps = n_steps
+        self.dt = dt
+        self.num = num
+
+    # @tf.function
+    def h_mu(self, X):
+        x, y, z = tf.split(X, [1, 1, 1], axis=-1)
+        with tf.GradientTape() as tape:
+            tape.watch([x, y, z])
+            n_ = self.net(x, y, z) 
+        grad_n = tf.concat(tape.gradient(n_, [x, y, z]), axis=-1)
+        return self.sigma**2*grad_n - self.mu(X)
+
+    @ut.timer
+    def calculate_probability(self):
+        self.prob = np.zeros(self.n_steps+1)
+        X = np.load('{}/{}_exit_trajectories.npy'.format(self.save_folder, self.tag)).astype(self.dtype)
+        for i in range(self.n_steps+1):
+            self.prob[i] =  1.-np.sum(np.sum(np.sign((X[i]-self.end_domain[0])*(self.end_domain[1]-X[i])), axis=-1)==self.dim)/X.shape[1]
+
+    @ut.timer
+    def get_prob(self, num, dt, n_steps, net, grid):
+        self.generate_trajectories(num, dt, n_steps, net, grid)
+        self.calculate_probability()
+
+    def update(self, **kwargs):
+        for key in kwargs:
+            setattr(self, key, kwargs[key])
+        
+
 
