@@ -314,9 +314,7 @@ class MCProb:
 
 
 
-
-
-class FKRec:
+class FK32:
     """
     Description: Feynman-Kac simulation for a 2D grid taking integration 
     in the other dimension into consideration
