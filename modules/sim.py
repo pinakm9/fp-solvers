@@ -429,7 +429,7 @@ class FK32:
 
 
     @ut.timer
-    def calc_2D_prob(self, n_steps, dt, n_repeats, i, j, filter, method, **kwargs):
+    def calc_2D_prob(self, n_steps, dt, n_repeats, i, j, filter, method, prune=True, **kwargs):
         """
         Description: propagates particles according to the SDE and stores the final positions
 
@@ -472,9 +472,12 @@ class FK32:
         else:
             nonzero_boxes = [(m, n) for m in range(self.n_subdivs) for n in range(self.n_subdivs)]
 
+        if not prune:
+            z, w = q.nodes, q.weights
         
         for m, n in nonzero_boxes:
-            z, w = self.prune_z(m, n, q.nodes, q.weights)
+            if prune:
+                z, w = self.prune_z(m, n, q.nodes, q.weights)
             ones = tf.ones_like(z)
             X0 = tf.concat([e for _, e in sorted(zip([i, j, k], [x[m]*ones, y[n]*ones, z]))], axis=-1).numpy()
             X = np.repeat(X0, repeats=n_repeats, axis=0)
