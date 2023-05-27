@@ -473,7 +473,7 @@ class FK32:
             nonzero_boxes = [(m, n) for m in range(self.n_subdivs) for n in range(self.n_subdivs)]
 
         if not prune:
-            z, w = q.nodes, q.weights
+            z, w = q.nodes.reshape(-1, 1), q.weights.reshape(-1, 1)
         
         for m, n in nonzero_boxes:
             if prune:
