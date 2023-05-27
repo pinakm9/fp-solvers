@@ -444,7 +444,6 @@ class FK32:
             method: quadrature method
             **kwargs: keyword arguments for quadrature
         """
-        self.filter = filter
         k = list({0, 1, 2}-{i, j})[0]
         x = np.linspace(self.grid.mins[i], self.grid.maxs[i], num=self.n_subdivs+1).astype(self.dtype)[1:] + self.grid.h[i]/2.
         y = np.linspace(self.grid.mins[j], self.grid.maxs[j], num=self.n_subdivs+1).astype(self.dtype)[1:] + self.grid.h[j]/2.
@@ -466,9 +465,12 @@ class FK32:
         self.final_time = dt * n_steps
         start = time.time()
      
-        if filter is not None:
+        self.filter = filter
+        if isinstance(filter, str):
             self.set_filter(i, j, q.nodes)
             nonzero_boxes = np.unique(self.boxes[:, [0, 1]], axis=0)
+        elif isinstance(filter,  np.ndarray):
+            nonzero_boxes = list(zip(*np.where(filter > 0.)))
         else:
             nonzero_boxes = [(m, n) for m in range(self.n_subdivs) for n in range(self.n_subdivs)]
 
