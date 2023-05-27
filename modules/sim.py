@@ -469,8 +469,8 @@ class FK32:
         if isinstance(filter, str):
             self.set_filter(i, j, q.nodes)
             nonzero_boxes = np.unique(self.boxes[:, [0, 1]], axis=0)
-        elif isinstance(filter,  np.ndarray):
-            nonzero_boxes = list(zip(*np.where(filter > 0.)))
+        elif isinstance(filter,  list):
+            nonzero_boxes = filter
         else:
             nonzero_boxes = [(m, n) for m in range(self.n_subdivs) for n in range(self.n_subdivs)]
 
