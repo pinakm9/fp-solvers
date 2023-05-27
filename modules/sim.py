@@ -467,7 +467,7 @@ class FK32:
         start = time.time()
      
         if filter is not None:
-            self.set_filter(i, j, z)
+            self.set_filter(i, j, q.nodes)
             nonzero_boxes = np.unique(self.boxes[:, [0, 1]], axis=0)
         else:
             nonzero_boxes = [(m, n) for m in range(self.n_subdivs) for n in range(self.n_subdivs)]
