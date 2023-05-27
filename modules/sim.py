@@ -422,7 +422,7 @@ class FK32:
         if len(zl) > 1:
             z_ = np.array(zl).astype(self.dtype).reshape(-1, 1)
             w_ = np.array(wl).astype(self.dtype).reshape(-1, 1)
-            return z_ 
+            return z_, w_
         else:
             return z.reshape(-1, 1), w.reshape(-1, 1)
      
