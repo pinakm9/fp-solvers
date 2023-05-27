@@ -407,20 +407,24 @@ class FK32:
         # print('boxes = {}'.format(self.boxes))
         # print('zmap = {}'.format(self.zmap))
 
-    def prune_z(self, m, n, z):
+    def prune_z(self, m, n, z, w):
         # # find z indices that contribute
         good_z = self.boxes[np.where((self.boxes[:, 0] == m) * (self.boxes[:, 1] == n))][:,-1] #np.unique(self.boxes[:, 2], axis=0)#
         # print('good_z = {}, {}, {}'.format(m, n, good_z))
         # convert to z values using zmap
         zl = list(z)
+        wl = list(w)
         for i in range(len(z)-1, -1, -1): # pop indices in reversed order
             if self.zmap[i] not in good_z:
                 zl.pop(i)
-        z_ = np.array(zl).astype(self.dtype).reshape(-1, 1)
-        if len(z_) > 1:
+                wl.pop(i)
+        
+        if len(zl) > 1:
+            z_ = np.array(zl).astype(self.dtype).reshape(-1, 1)
+            w_ = np.array(wl).astype(self.dtype).reshape(-1, 1)
             return z_ 
-        else :
-            return z+0.
+        else:
+            return z.reshape(-1, 1), w.reshape(-1, 1)
      
 
 
@@ -442,8 +446,8 @@ class FK32:
         """
         self.filter = filter
         k = list({0, 1, 2}-{i, j})[0]
-        x = np.linspace(self.grid.mins[i], self.grid.maxs[i], num=self.n_subdivs+1).astype(self.dtype)[1:]
-        y = np.linspace(self.grid.mins[j], self.grid.maxs[j], num=self.n_subdivs+1).astype(self.dtype)[1:]
+        x = np.linspace(self.grid.mins[i], self.grid.maxs[i], num=self.n_subdivs+1).astype(self.dtype)[1:] + self.grid.h[i]/2.
+        y = np.linspace(self.grid.mins[j], self.grid.maxs[j], num=self.n_subdivs+1).astype(self.dtype)[1:] + self.grid.h[j]/2.
         
         # set up integration
         domain = [self.grid.mins[k], self.grid.maxs[k]]
@@ -456,8 +460,7 @@ class FK32:
             q = it.Simpson_3_8(domain, num, self.dtype)
         elif method == "Gauss_Legendre":
             q = it.Gauss_Legendre(domain, num, kwargs['d'], self.dtype)
-        
-        z = q.nodes.reshape(-1, 1)
+         
         prob = np.zeros((self.n_subdivs, self.n_subdivs))
         self.n_steps = n_steps
         self.final_time = dt * n_steps
@@ -471,16 +474,15 @@ class FK32:
 
         
         for m, n in nonzero_boxes:
-                pruned_z = z
-                ones = tf.ones_like(pruned_z)
-                a, b = x[m] + self.grid.h[i]/2., y[n] + self.grid.h[j]/2.
-                X0 = tf.concat([e for _, e in sorted(zip([i, j, k], [a*ones, b*ones, pruned_z]))], axis=-1).numpy()
-                X = np.repeat(X0, repeats=n_repeats, axis=0)
-                dW = np.random.normal(scale=np.sqrt(dt), size=(n_steps, X.shape[0], 3)).astype(self.dtype)
-                X = self.get_endpt(n_steps, dt, X, dW)
-                print('grid_index = {}, time taken = {:.4f}'.format((m, n), time.time() - start))
-                h0 = tf.reduce_mean(self.h0(X).reshape((-1, n_repeats)), axis=-1, keepdims=True).numpy()
-                prob[m][n] = q.quad(evals=h0*self.p_inf(X0)) 
+            z, w = self.prune_z(m, n, q.nodes, q.weights)
+            ones = tf.ones_like(z)
+            X0 = tf.concat([e for _, e in sorted(zip([i, j, k], [x[m]*ones, y[n]*ones, z]))], axis=-1).numpy()
+            X = np.repeat(X0, repeats=n_repeats, axis=0)
+            dW = np.random.normal(scale=np.sqrt(dt), size=(n_steps, X.shape[0], 3)).astype(self.dtype)
+            X = self.get_endpt(n_steps, dt, X, dW)
+            print('grid_index = {}, time taken = {:.4f}'.format((m, n), time.time() - start))
+            h0 = tf.reduce_mean(self.h0(X).reshape((-1, n_repeats)), axis=-1, keepdims=True).numpy()
+            prob[m][n] = (w*h0*self.p_inf(X0)).sum()
         return prob
 
 
