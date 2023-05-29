@@ -694,8 +694,18 @@ class Exit:
     def calculate_probability(self):
         self.prob = np.zeros(self.n_steps+1)
         X = np.load('{}/{}_exit_trajectories.npy'.format(self.save_folder, self.tag)).astype(self.dtype)
+        self.in_out = np.zeros((X.shape[1], self.n_steps+1), dtype=self.dtype) 
         for i in range(self.n_steps+1):
-            self.prob[i] =  1.-np.sum(np.sum(np.sign((X[i]-self.end_domain[0])*(self.end_domain[1]-X[i])), axis=-1)==self.dim)/X.shape[1]
+            self.in_out[:, i] =  (np.sum(np.sign((X[i]-self.end_domain[0])*(self.end_domain[1]-X[i])), axis=-1)==self.dim)\
+                                 .astype(self.dtype)
+        mask = self.in_out == 0.
+        first_0 = np.where(mask.any(1), mask.argmax(1), -1)
+        for i in first_0:
+            if i > -1:
+                self.in_out[:, i:] *= 0.
+        self.prob = np.sum(self.in_out, axis=0) / X.shape[1]
+        
+
 
     @ut.timer
     def get_prob(self, num, dt, n_steps, net, grid):
