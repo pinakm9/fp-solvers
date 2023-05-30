@@ -644,7 +644,7 @@ class Exit:
     def generate_trajectories(self, num, dt, n_steps, net=None, grid=False):
         if net is not None:
             self.net = net
-            mu = lambda X: self.h_mu(X).numpy()
+            mu = lambda X: self.h_mu(X)
             self.dtype = net.dtype
         else:
             mu = self.mu
@@ -662,7 +662,7 @@ class Exit:
                 X[0, :, :] = np.concatenate([x.reshape(-1, 1), y.reshape(-1, 1)], axis=-1)
         else:
             X = np.zeros((n_steps+1, num, self.dim)).astype(self.dtype)
-            X[0, :, :] = np.random.uniform(low=self.start_domain[0], high=self.end_domain[1], size=(num, self.dim)).astype(self.dtype)
+            X[0, :, :] = np.random.uniform(low=self.start_domain[0], high=self.start_domain[1], size=(num, self.dim)).astype(self.dtype)
         dW = np.random.normal(scale=np.sqrt(dt), size=(n_steps, X.shape[1], self.dim)).astype(self.dtype)
         m = self.max_comp
         M = int(np.ceil(X.shape[1] / m))
@@ -671,11 +671,11 @@ class Exit:
                 if i < M-1:
                     x = X[step, i*m: (i+1)*m, :]
                     noise = dW[step, i*m: (i+1)*m, :]
-                    X[step+1, i*m: (i+1)*m, :] = x + self.h_mu(x).numpy() * dt + self.sigma * noise
+                    X[step+1, i*m: (i+1)*m, :] = x + mu(x).numpy() * dt + self.sigma * noise
                 else:
                     x = X[step, i*m:, :]
                     noise = dW[step, i*m:, :]
-                    X[step+1, i*m:, :] = x + self.h_mu(x).numpy() * dt + self.sigma * noise
+                    X[step+1, i*m:, :] = x + mu(x).numpy() * dt + self.sigma * noise
         np.save('{}/{}_exit_trajectories.npy'.format(self.save_folder, self.tag), X)
         self.n_steps = n_steps
         self.dt = dt
@@ -683,27 +683,24 @@ class Exit:
 
     # @tf.function
     def h_mu(self, X):
-        x, y, z = tf.split(X, [1, 1, 1], axis=-1)
+        args = tf.split(X, self.dim, axis=-1)
         with tf.GradientTape() as tape:
-            tape.watch([x, y, z])
-            n_ = self.net(x, y, z) 
-        grad_n = tf.concat(tape.gradient(n_, [x, y, z]), axis=-1)
+            tape.watch(args)
+            n_ = self.net(*args) 
+        grad_n = tf.concat(tape.gradient(n_, args), axis=-1)
         return self.sigma**2*grad_n - self.mu(X)
 
     @ut.timer
     def calculate_probability(self):
         self.prob = np.zeros(self.n_steps+1)
         X = np.load('{}/{}_exit_trajectories.npy'.format(self.save_folder, self.tag)).astype(self.dtype)
-        self.in_out = np.zeros((X.shape[1], self.n_steps+1), dtype=self.dtype) 
+        self.io = np.zeros((self.n_steps+1, X.shape[1]), dtype=self.dtype) 
         for i in range(self.n_steps+1):
-            self.in_out[:, i] =  (np.sum(np.sign((X[i]-self.end_domain[0])*(self.end_domain[1]-X[i])), axis=-1)==self.dim)\
+            self.io[i] =  (np.sum(np.sign((X[i]-self.end_domain[0])*(self.end_domain[1]-X[i])), axis=-1)==self.dim)\
                                  .astype(self.dtype)
-        mask = self.in_out == 0.
-        first_0 = np.where(mask.any(1), mask.argmax(1), -1)
-        for i in first_0:
-            if i > -1:
-                self.in_out[:, i:] *= 0.
-        self.prob = np.sum(self.in_out, axis=0) / X.shape[1]
+        for i in range(1, self.n_steps+1):
+            self.io[i] *= self.io[i-1]
+        self.prob = 1. - np.sum(self.io, axis=-1) / X.shape[1]
         
 
 
