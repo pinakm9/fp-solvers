@@ -74,7 +74,6 @@ class MCProb:
                 print('step = {}, time taken = {:.4f}'.format(step, time.time() - start), end='\r')
         pd.DataFrame(self.X).to_csv('{}/ensemble.csv'.format(self.save_folder), index=None, header=None)
 
-
     def roundup(self, real, n):
         """
         Description: Rounds up a real number to desired number of decimal points
@@ -488,6 +487,69 @@ class FK32:
             print('grid_index = {}, time taken = {:.4f}'.format((m, n), time.time() - start))
             h0 = tf.reduce_mean(self.h0(X).reshape((-1, n_repeats)), axis=-1, keepdims=True).numpy()
             prob[m][n] = (w*h0*self.p_inf(X0)).sum()
+        return prob
+    
+
+    @ut.timer
+    def calc_2D_prob_weighted(self, n_steps, dt, n_repeats, i, j, filter, method, weight, prune=True, **kwargs):
+        """
+        Description: propagates particles according to the SDE and stores the final positions
+
+        Args:
+            n_steps: number of steps in Euler-Maruyama
+            dt: time-step in Euler-Maruyama
+            n_repeats: number of simulations per grid point
+            i: x dimension
+            j: y dimension 
+            k: dimension to be integrated out
+            filter: None or path to reference ensemble for filtering
+            method: quadrature method
+            **kwargs: keyword arguments for quadrature
+        """
+        k = list({0, 1, 2}-{i, j})[0]
+        x = np.linspace(self.grid.mins[i], self.grid.maxs[i], num=self.n_subdivs+1).astype(self.dtype)[1:] + self.grid.h[i]/2.
+        y = np.linspace(self.grid.mins[j], self.grid.maxs[j], num=self.n_subdivs+1).astype(self.dtype)[1:] + self.grid.h[j]/2.
+        
+        # set up integration
+        domain = [self.grid.mins[k], self.grid.maxs[k]]
+        num = kwargs['num']
+        if method == "Trapezoidal":
+            q = it.Trapezoidal(domain, num, self.dtype)
+        elif method == "Simpson_1_3":
+            q = it.Simpson_1_3(domain, num, self.dtype)
+        elif method == "Simpson_3_8":
+            q = it.Simpson_3_8(domain, num, self.dtype)
+        elif method == "Gauss_Legendre":
+            q = it.Gauss_Legendre(domain, num, kwargs['d'], self.dtype)
+         
+        prob = np.zeros((self.n_subdivs, self.n_subdivs))
+        self.n_steps = n_steps
+        self.final_time = dt * n_steps
+        start = time.time()
+     
+        self.filter = filter
+        if isinstance(filter, str):
+            self.set_filter(i, j, q.nodes)
+            nonzero_boxes = np.unique(self.boxes[:, [0, 1]], axis=0)
+        elif isinstance(filter,  list):
+            nonzero_boxes = filter
+        else:
+            nonzero_boxes = [(m, n) for m in range(self.n_subdivs) for n in range(self.n_subdivs)]
+
+        if not prune:
+            z, w = q.nodes.reshape(-1, 1), q.weights.reshape(-1, 1)
+        
+        for m, n in nonzero_boxes:
+            if prune:
+                z, w = self.prune_z(m, n, q.nodes, q.weights)
+            ones = tf.ones_like(z)
+            X0 = tf.concat([e for _, e in sorted(zip([i, j, k], [x[m]*ones, y[n]*ones, z]))], axis=-1).numpy()
+            X = np.repeat(X0, repeats=n_repeats, axis=0)
+            dW = np.random.normal(scale=np.sqrt(dt), size=(n_steps, X.shape[0], 3)).astype(self.dtype)
+            X = self.get_endpt(n_steps, dt, X, dW)
+            print('grid_index = {}, time taken = {:.4f}'.format((m, n), time.time() - start))
+            Eh0 = tf.reduce_mean(self.h0(X).reshape((-1, n_repeats)), axis=-1, keepdims=True).numpy()
+            prob[m][n] = (w*Eh0*self.p_inf(X0)*weight(X0)).sum()
         return prob
 
 
