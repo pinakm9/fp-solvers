@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np 
 from scipy.special import erf
 
-DTYPE = 'float32'
+DTYPE = 'float64'
 sigma_0 = 0.5
 c = 2. * np.pi * sigma_0**2
 sigma = np.sqrt(2., dtype= DTYPE)
