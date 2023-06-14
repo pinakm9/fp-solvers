@@ -1,4 +1,4 @@
-import tensorflow as tf
+# import tensorflow as tf
 import numpy as np 
 from scipy.special import erf
 
@@ -21,7 +21,7 @@ def middle(x, y):
 
 def get_p0(dim):
     def p0(X):
-        args = tf.split(X, dim, axis=-1)
+        args = np.split(X, dim, axis=-1)
         a = [args[i:i+2] for i in range(0, dim, 2)]
         val = 1.0
         for x, y in a:
@@ -31,23 +31,23 @@ def get_p0(dim):
 
 def get_mu(dim):
     def mu(X):
-        args = tf.split(X, dim, axis=-1)
+        args = np.split(X, dim, axis=-1)
         a = [args[i:i+2] for i in range(0, dim, 2)]
         arr = []
         for x, y in a:
             z = -4. * (x*x + y*y - 1.)
             arr += [x*z, y*z]
-        return tf.concat(arr, axis=-1)
+        return np.concatenate(arr, axis=-1)
     return mu
 
 def get_p_inf(dim):
     def p_inf(X):
-        args = tf.split(X, dim, axis=-1)
+        args = np.split(X, dim, axis=-1)
         a = [args[i:i+2] for i in range(0, dim, 2)]
         val = 0.0
         for x, y in a:
             val -= ((x*x + y*y - 1.)**2) / D + logZ
-        return tf.exp(val)
+        return np.exp(val)
     return p_inf
         
 
