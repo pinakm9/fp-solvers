@@ -774,6 +774,53 @@ class Exit:
     def update(self, **kwargs):
         for key in kwargs:
             setattr(self, key, kwargs[key])
+
+
+    @ut.timer
+    def generate_trajectories_2(self, n_pts, n_reps, n_steps, dt, net=None):
+        if net is not None:
+            self.net = net
+            mu = lambda X: self.h_mu(X)
+            self.dtype = net.dtype
+        else:
+            mu = self.mu
         
+        io = np.zeros((n_pts, n_reps, n_steps+1))
+        X0 = np.random.uniform(low=self.start_domain[0], high=self.start_domain[1], size=(n_pts, self.dim)).astype(self.dtype)
+        X = np.zeros((n_pts*n_reps, n_steps+1, self.dim)).astype(self.dtype)
+        X[:, 0, :] = np.repeat(X0, n_reps, axis=0)
+        dW = np.random.normal(scale=np.sqrt(dt), size=(n_steps, X.shape[0], self.dim)).astype(self.dtype)
+        m = self.max_comp
+        M = int(np.ceil(X.shape[1] / m))
+        for step in range(n_steps):
+            for i in range(M):
+                if i < M-1:
+                    x = X[i*m: (i+1)*m, step, :]
+                    noise = dW[step, i*m: (i+1)*m, :]
+                    X[i*m: (i+1)*m, step+1, :] = x + mu(x).numpy() * dt + self.sigma * noise
+                else:
+                    x = X[i*m:, step, :]
+                    noise = dW[step, i*m:, :]
+                    X[i*m:, step+1, :] = x + mu(x).numpy() * dt + self.sigma * noise
+        np.save('{}/{}_exit_trajectories_ptw.npy'.format(self.save_folder, self.tag), X)
+        self.n_steps = n_steps
+        self.dt = dt
+        self.n_pts = n_pts
+        self.n_reps = n_reps
+
+    
+    @ut.timer
+    def calculate_max_probability(self):
+        X = np.load('{}/{}_exit_trajectories_ptw.npy'.format(self.save_folder, self.tag))
+        io =  (np.sum(np.sign((X-self.end_domain[0])*(self.end_domain[1]-X)), axis=-1)==self.dim).astype(self.dtype)
+        pd.DataFrame(io).to_csv('{}/{}_io.csv'.format(self.save_folder, self.tag), index=None, header=None)
+        for j in range(1, io.shape[1]):
+            io[:, j] *= io[:, j-1]
+        pd.DataFrame(io).to_csv('{}/{}_io_final.csv'.format(self.save_folder, self.tag), index=None, header=None)
+        io = np.sum(io.reshape(self.n_pts, self.n_reps, io.shape[-1]), axis=1) / self.n_reps
+        pd.DataFrame(io).to_csv('{}/{}_io_prob.csv'.format(self.save_folder, self.tag), index=None, header=None)
+        pd.DataFrame(np.sum(io, axis=0) / self.n_pts).to_csv('{}/{}_io_prob_all_avg.csv'.format(self.save_folder, self.tag), index=None, header=None)
+        pd.DataFrame(np.amin(io, axis=0)).to_csv('{}/{}_io_prob_all_min.csv'.format(self.save_folder, self.tag), index=None, header=None)
+        return io
 
 
