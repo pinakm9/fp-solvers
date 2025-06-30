@@ -236,6 +236,14 @@ class MCProb:
 
     @ut.timer
     def ready(self, n_steps, dt, lims=None):
+        """
+        Description: Prepares the MCProb object for computing the probability densities.
+
+        Args:
+            n_steps: number of steps to propagate the particles
+            dt: time step size
+            lims: limits of the grid in each dimension
+        """
         self.propagate(n_steps, dt)
         self.set_grid(lims)
         self.assign_pts()
@@ -319,6 +327,21 @@ class FK32:
     in the other dimension into consideration
     """
     def __init__(self, save_folder, n_subdivs, n_int_subdivs, mu, sigma, n_theta, grid, log_p0, dtype='float32', max_comp=1e5):
+        """
+        Initializes the Feynman-Kac simulation object.
+
+        Parameters:
+            save_folder (str): Directory path to save simulation results.
+            n_subdivs (int): Number of subdivisions for the grid in each dimension.
+            n_int_subdivs (int): Number of subdivisions for the integration grid in each dimension.
+            mu (callable): The drift function for the stochastic process.
+            sigma (float): The diffusion coefficient for the stochastic process.
+            n_theta (int): Trained neural network representing the log of the steady state.
+            grid (Grid): The grid object.
+            log_p0 (callable): The logarithm of the stationary distribution.
+            dtype (str): The data type for the simulation. Default is 'float32'.
+            max_comp (int): The maximum number of points to evaluate the network on. Should be tailored according to the GPU memory. Default is 1e5.
+        """
         self.grid = grid 
         self.mu = mu 
         self.sigma = sigma
@@ -332,6 +355,15 @@ class FK32:
         self.max_comp = int(max_comp)
 
     def h0(self, X):
+        """
+        Computes the initial condition for the Feynman-Kac simulation.
+
+        Parameters:
+            X (numpy array): The points to evaluate the initial condition on.
+
+        Returns:
+            numpy array: The initial condition evaluated on X.
+        """
         m = self.max_comp
         M = int(np.ceil(len(X) / m))
         data = []
@@ -346,6 +378,15 @@ class FK32:
         return np.concatenate(data, axis=0) 
 
     def p_inf(self, X):
+        """
+        Computes the steady state using the trained neural network.
+
+        Parameters:
+            X (numpy array): The points to evaluate the steady state on.
+
+        Returns:
+            numpy array: The steady state evaluated on X.
+        """
         m = self.max_comp
         M = int(np.ceil(len(X) / m))
         data = []
@@ -359,6 +400,22 @@ class FK32:
 
     @tf.function
     def h_mu(self, X):
+        """
+        Computes the drift term of the h-SDE.
+
+        This function calculates the h-drift term using the neural network's 
+        gradient and the given drift function mu.
+
+        Parameters:
+            X (tf.Tensor): A tensor of shape (N, 3) where N is the number of 
+                        samples, representing the input data consisting of 
+                        x, y, z coordinates.
+
+        Returns:
+            tf.Tensor: The computed h-drift term as a tensor of the same shape
+                    as the input X.
+        """
+
         x, y, z = tf.split(X, [1, 1, 1], axis=-1)
         with tf.GradientTape() as tape:
             tape.watch([x, y, z])
@@ -368,6 +425,18 @@ class FK32:
     
     #@tf.function
     def get_endpt(self, n_steps, dt, X, dW): 
+        """
+        This function integrates the h-SDE from given initial conditions X with given noise dW.
+        
+        Parameters:
+            n_steps (int): The number of time steps to integrate for.
+            dt (float): The time step size.
+            X (tf.Tensor): The initial conditions of the stochastic process.
+            dW (tf.Tensor): The noise to be added to the stochastic process.
+        
+        Returns:
+            tf.Tensor: The integrated stochastic process at the end of the time steps.
+        """
         m = self.max_comp
         M = int(np.ceil(len(X) / m))
         data = []
@@ -385,6 +454,20 @@ class FK32:
     
     @ut.timer
     def set_filter(self, i, j, z):
+        """
+        Configures the filter by setting up rectangular boxes and mapping z-values.
+
+        Args:
+            i (int): Index specifying the first dimension.
+            j (int): Index specifying the second dimension.
+            z (array-like): Array of z-values to map.
+
+        Loads an ensemble from a file and divides the space into rectangular boxes
+        based on the grid dimensions. Computes box coordinates for each point in the
+        ensemble and removes duplicates. Maps the z-values to a uniform grid for further
+        processing.
+        """
+
         k = list({0, 1, 2}-{i, j})[0]
         # load the ensemble
         pts = np.genfromtxt(self.filter, delimiter=',')
@@ -407,6 +490,18 @@ class FK32:
         # print('zmap = {}'.format(self.zmap))
 
     def prune_z(self, m, n, z, w):
+        """
+        Removes z values that do not contribute to the probability calculation.
+
+        Parameters:
+            m (int): Index specifying the first dimension.
+            n (int): Index specifying the second dimension.
+            z (tf.Tensor): The z values to prune.
+            w (tf.Tensor): The weights to prune.
+
+        Returns:
+            tf.Tensor, tf.Tensor: The pruned z values and weights.
+        """
         # # find z indices that contribute
         good_z = self.boxes[np.where((self.boxes[:, 0] == m) * (self.boxes[:, 1] == n))][:,-1] #np.unique(self.boxes[:, 2], axis=0)#
         # print('good_z = {}, {}, {}'.format(m, n, good_z))

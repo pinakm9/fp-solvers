@@ -7,6 +7,22 @@ DTYPE = 'float32'
 
 @ut.timer
 def evolve(X0, mu, sigma, dt, n_steps, saveas=None, animate_as=None, idx2plt=[0, 1, 2]):
+    """
+    Evolve a system according to the Langevin equation
+
+    Parameters:
+    X0 (numpy array): initial condition
+    mu (function): drift term of the SDE
+    sigma (function): diffusion term of the SDE
+    dt (float): time step
+    n_steps (int): number of time steps
+    saveas (str, optional): if given, save the final state to this filename
+    animate_as (str, optional): if given, animate the evolution and save to this filename
+    idx2plt (list of int, optional): if animate_as is given, plot the given indices of the state
+
+    Returns:
+    The final state of the system
+    """
     X = np.zeros((n_steps + 1, X0.shape[0], X0.shape[1])).astype(DTYPE)
     X[0, :, :] = X0
     dW = np.random.normal(scale=np.sqrt(dt), size=(n_steps, X0.shape[0], X0.shape[1])).astype(DTYPE)

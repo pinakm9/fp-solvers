@@ -5,19 +5,55 @@ class Integrator:
     Description: Base class for defining different integrators
     """
     def __init__(self, domain, num, dtype='float32'):
+        """
+        Initializes the Integrator object with the given domain, number of subintervals, and data type.
+
+        Parameters:
+            domain (tuple): A tuple of length 2, specifying the lower and upper bounds of the integration domain.
+            num (int): The number of subintervals for the integration.
+            dtype (str): The data type of the nodes and weights. Default is 'float32'.
+        """
+
         self.domain = domain 
         self.dtype = dtype
         self.set_nodes(num)
 
 
     def set_nodes(self, num):
+        """
+        Description: Set the nodes and weights for the integrator
+
+        Parameters:
+            num (int): number of subintervals
+
+        Returns:
+            None
+        """
         self.nodes = np.zeros(num).astype(self.dtype)
         self.weights = np.ones(num).astype(self.dtype)
         
     def compute(self, f):
+        """
+        Description: Compute the integral of a given function using the weights and nodes of the integrator.
+
+        Parameters:
+            f (function): The function to be integrated.
+
+        Returns:
+            float: The integral value.
+        """
         return (f(self.nodes)*self.weights).sum()
     
     def quad(self, evals):
+        """
+        Description: Compute the integral of a given function using the weights and nodes of the integrator
+
+        Parameters:
+            evals (numpy array): The function values at the nodes
+
+        Returns:
+            float: The integral value
+        """
         return (evals*self.weights).sum()
     
 
@@ -26,9 +62,26 @@ class Trapezoidal(Integrator):
     Description: Class for defining trapezoidal quadrature
     """
     def __init__(self, domain, num, dtype='float32'):
+        """
+        Description: Initialize the Trapezoidal quadrature
+        
+        Parameters:
+            domain (tuple): tuple of length 2, (a, b) where a and b are the lower and upper bounds of the integration domain
+            num (int): number of subintervals
+            dtype (str): data type of the nodes and weights. Default is 'float32'
+        """
         super().__init__(domain, num, dtype)
 
     def set_nodes(self, num):
+        """
+        Description: Set the nodes and weights for the trapezoidal quadrature
+
+        Parameters:
+            num (int): number of subintervals
+
+        Returns:
+            None
+        """
         self.nodes = np.linspace(self.domain[0], self.domain[1], num=num+1, endpoint=True, dtype=self.dtype)
         self.h = (self.domain[1] - self.domain[0]) / num
         self.weights = np.ones(len(self.nodes)) 
@@ -42,11 +95,25 @@ class Simpson_1_3(Integrator):
     Description: Class for defining Simpson 1/3 quadrature
     """
     def __init__(self, domain, num, dtype='float32'):
+        """
+        Description: Initialize the Simpson 1/3 quadrature
+        
+        Parameters:
+            domain (tuple): tuple of length 2, (a, b) where a and b are the lower and upper bounds of the integration domain
+            num (int): number of subintervals. Must be an even number
+            dtype (str): data type of the nodes and weights. Default is 'float32'
+        """
         super().__init__(domain, num, dtype)
 
     def set_nodes(self, num):
         """
-        num: an even number
+        Description: Set the nodes and weights for the Simpson 1/3 quadrature
+
+        Parameters:
+            num (int): number of subintervals. Must be an even number
+
+        Returns:
+            None
         """
         self.nodes = np.linspace(self.domain[0], self.domain[1], num=num+1, endpoint=True, dtype=self.dtype)
         h = (self.domain[1] - self.domain[0]) / num
@@ -65,11 +132,26 @@ class Simpson_3_8(Integrator):
     Description: Class for defining Simpson 3/8 quadrature
     """
     def __init__(self, domain, num, dtype='float32'):
+        """
+        Description: Initialize the Simpson 3/8 quadrature
+        
+        Parameters:
+            domain (tuple): tuple of length 2, (a, b) where a and b are the lower and upper bounds of the integration domain
+            num (int): number of subintervals. Must be an integer multiple of 3
+            dtype (str): data type of the nodes and weights. Default is 'float32'
+        """
         super().__init__(domain, num, dtype)
 
     def set_nodes(self, num):
+      
         """
-        num: a multiple of 3
+        Description: Set the nodes and weights for the Simpson 3/8 quadrature
+
+        Parameters:
+            num (int): number of subintervals. Must be an integer multiple of 3
+
+        Returns:
+            None
         """
         self.nodes = np.linspace(self.domain[0], self.domain[1], num=num+1, endpoint=True, dtype=self.dtype)
         h = (self.domain[1] - self.domain[0]) / num
@@ -87,10 +169,28 @@ class Gauss_Legendre(Integrator):
     Description: Class for defining Gauss-Legendre quadrature
     """
     def __init__(self, domain, num, d, dtype='float32'):
+        """
+        Description: Initialize the Gauss-Legendre quadrature
+
+        Parameters:
+            domain (tuple): tuple of length 2, (a, b) where a and b are the lower and upper bounds of the integration domain
+            num (int): number of subintervals
+            d (int): degree of the Legendre polynomial
+            dtype (str): data type of the nodes and weights. Default is 'float32'
+        """
         self.d = d
         super().__init__(domain, num, dtype)
 
     def set_nodes(self, num):
+        """
+        Description: Set the nodes and weights for the Gauss-Legendre quadrature
+
+        Parameters:
+            num (int): number of subintervals
+
+        Returns:
+            None
+        """
         self.x, self.w = np.polynomial.legendre.leggauss(self.d)
         self.x, self.w = self.x.astype(self.dtype), self.w.astype(self.dtype)
         pre_nodes = np.linspace(self.domain[0], self.domain[1], num=num+1, endpoint=True, dtype=self.dtype)
