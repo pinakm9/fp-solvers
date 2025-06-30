@@ -2,6 +2,16 @@ import tensorflow as tf
 
 class LSTMForgetBlock(tf.keras.layers.Layer):
     def __init__(self, num_nodes, dtype=tf.float32):
+        """
+        Initialize the LSTMForgetBlock.
+        
+        Parameters
+        ----------
+        num_nodes : int
+            The number of nodes in the block.
+        dtype : str, optional
+            The data type of the block, by default tf.float32
+        """
         super().__init__(name='LSTMForgetBlock', dtype=dtype)
         self.W_f = tf.keras.layers.Dense(num_nodes, dtype=dtype, name='W_f', use_bias=False)
         self.U_f = tf.keras.layers.Dense(num_nodes, dtype=dtype, name='U_f')
@@ -53,6 +63,20 @@ class LSTMForgetNet(tf.keras.models.Model):
 class VanillaNet(tf.keras.models.Model):
 
     def __init__(self, num_nodes, num_layers, dtype=tf.float32, name = 'VanillaNet'):
+        """
+        Initialize the VanillaNet which is a simple feedforward neural network.
+        
+        Parameters
+        ----------
+        num_nodes : int
+            The number of nodes in each layer of the neural network.
+        num_layers : int
+            The number of layers in the neural network.
+        dtype : str, optional
+            The data type of the neural network, by default tf.float32
+        name : str, optional
+            The name of the neural network, by default 'VanillaNet'
+        """
         super().__init__(dtype=dtype, name=name)
         self.num_nodes = num_nodes
         self.num_layers = num_layers
