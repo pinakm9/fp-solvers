@@ -115,18 +115,26 @@ fp-solvers/
 
 
 ### Modules
-The main Python classes can be found in the modules folder. The [Navigation](#navigation) section here documents the kind of functionality implemented in each file within the modules folder. Here we point to the three main classes for conducting the experiments reported in the papers. 
-#### LogSteadyStateSolver -> modules/lss_solver.py
-Learns the steady state of a Fokker-Planck equation by training a neural network. The training happens inside the "learn" method. To see example usage, refer to colab/ring2D.ipynb, colab/ring4D.ipynb, colab/ring6D.ipynb, colab/ring8D.ipynb, colab/ring10D.ipynb, colab/L63.ipynb, colab/Thomas.ipynb etc. 
-#### MCProb -> modules/sim.py
-Computes the Monte-Carlo estimate for solution to a Fokker-Planck equation. compute_p2 is the main method for computing 2D marginal pdfs depicted in the papers. To see example usage, refer to colab/L63_comparison.ipynb, colab/Thomas_comparison.ipynb, colab/L63_time.ipynb, colab/Thomas_time.ipynb, colab/ring10D_time.ipynb, colab/ring2D_error.ipynb, colab/L63_filter.ipynb, colab/L63_pf.ipynb etc. 
-#### FK32 -> modules/sim.py
-Computes the time-dependent solution of 3D Fokker-Planck equations combining a neural network steady state with the Feynman-Kac formula. calc_2D_prob is the main method for computing 2D marginal densities (the "32" in "FK32" refers to the 3D state and 2D marginals). To see example usage, refer to colab/L63_time.ipynb, colab/Thomas_time.ipynb etc. Another useful method, in the context of filtering, is calc_2D_prob_weighted which uses the 2D marginals as priors and computes the posteriors using a weight/observation likelihood function. To see example usage, refer to colab/L63_filter.ipynb.
+The main Python classes can be found in the modules folder. The [Navigation](#navigation) section here documents the kind of functionality implemented in each file within the modules folder. Here we point to the four main classes for conducting the experiments reported in the papers. 
+#### LogSteadyStateSolver → modules/lss_solver.py
+Learns the steady state of a Fokker-Planck equation by training a neural network. The training happens inside the "learn" method. For example usage, refer to colab/ring2D.ipynb, colab/ring4D.ipynb, colab/ring6D.ipynb, colab/ring8D.ipynb, colab/ring10D.ipynb, colab/L63.ipynb, colab/Thomas.ipynb etc. 
+#### MCProb → modules/sim.py
+Computes the Monte-Carlo estimate for solution to a Fokker-Planck equation. compute_p2 is the main method for computing 2D marginal pdfs depicted in the papers. For example usage, refer to colab/L63_comparison.ipynb, colab/Thomas_comparison.ipynb, colab/L63_time.ipynb, colab/Thomas_time.ipynb, colab/ring10D_time.ipynb, colab/ring2D_error.ipynb, colab/L63_filter.ipynb, colab/L63_pf.ipynb etc. 
+#### FK32 → modules/sim.py
+Computes the time-dependent solution of 3D Fokker-Planck equations combining a neural network steady state with the Feynman-Kac formula. calc_2D_prob is the main method for computing 2D marginal densities (the "32" in "FK32" refers to the 3D state and 2D marginals). For example usage, refer to colab/L63_time.ipynb, colab/Thomas_time.ipynb etc. Another useful method, in the context of filtering, is calc_2D_prob_weighted which uses the 2D marginals as priors and computes the posteriors using a weight/observation likelihood function. For example usage, refer to colab/L63_filter.ipynb.
+#### LSTMForgetNet → modules/arch.py
+This is the main network architecture used for conducting the experiments, and is necessary for reusing all the pre-trained models in this repository. For example usage, refer to colab/ring2D_error.ipynb, colab/L63_comparison.ipynb, colab/Thomas_comparison.ipynb, colab/L63_time.ipynb, colab/Thomas_time.ipynb, colab/ring10D_time.ipynb etc.
 
 
 ### Data
 #### Pre-trained models
-The trained models are stored in files that are named in the following manner: network.data-00000-of-00001 and network.index where "network" is a placeholder. E.g. the network representing the steady state of the 2D ring system saved after 500 training iterations might be stored in the files ring2D_500.data-00000-of-00001 and ring2D_500.index, see for example ring-fp/data/2D-true-vs-learned. When the training iteration is not a part of the filenames, assume that the files correspond to the final training iteration as suggested in the corresponding [training log](#training-logs).
+The trained models are stored in files that are named in the following manner: network.data-00000-of-00001 and network.index where "network" is a placeholder. E.g. the network representing the steady state of the 2D ring system saved after 500 training iterations might be stored in the files ring2D_500.data-00000-of-00001 and ring2D_500.index, see for example ring-fp/data/2D-true-vs-learned. When the training iteration is not a part of the filenames, assume that the files correspond to the final training iteration as suggested in the corresponding [training log](#training-logs). A pre-trained model can be loaded via the load_weights method of the corresponding architecture class. This code snippet shows an example of loading such a model. 
+```sh
+import arch
+save_folder = "fp-solvers/ring-fp/data/2D"
+network = arch.LSTMForgetNet(num_nodes=50, num_blocks=3, dtype=tf.float32, name="ring2D")
+network.load_weights(f"{save_folder}/{network.name}").expect_partial()
+```
 
 #### Training logs
 The files named train_log.csv document a brief history of the training. The first, second and third columns store training iteration, value of the loss function at said iteration and elapsed time in seconds, respectively.
