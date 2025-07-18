@@ -10,10 +10,10 @@ This repository contains implementations of various algorithms for solving high-
     - [Navigation](#navigation)
     - [Modules](#modules)
     - [Data](#data)
-        - [Pre-trained models](#models)
-        - [Training logs](#logs)
-        - [Miscellaneous](#misc)
-- [Tutorials and Replication](#tutorials)
+        - [Pre-trained models](#pre-trained-models)
+        - [Training logs](#training-logs)
+        - [Miscellaneous](#miscellaneous)
+- [Tutorials and Replication](#tutorials-and-replication)
 - [License](#license)
 
 
@@ -126,7 +126,7 @@ Computes the time-dependent solution of 3D Fokker-Planck equations combing a neu
 
 ### Data
 #### Pre-trained models
-The trained models are stored in files that are named in the following manner: network.data-00000-of-00001 and network.index where "network" is a placeholder. E.g. the network representing the steady state of the 2D ring system saved after 500 training iterations might be stored in the files ring2D_500.data-00000-of-00001 and ring2D_500.index, see for example ring-fp/data/2D-true-vs-learned. When the training iteration is not a part of the filenames, assume that the files correspond to the final training iteration as suggested in the corresponding [training log](#logs).
+The trained models are stored in files that are named in the following manner: network.data-00000-of-00001 and network.index where "network" is a placeholder. E.g. the network representing the steady state of the 2D ring system saved after 500 training iterations might be stored in the files ring2D_500.data-00000-of-00001 and ring2D_500.index, see for example ring-fp/data/2D-true-vs-learned. When the training iteration is not a part of the filenames, assume that the files correspond to the final training iteration as suggested in the corresponding [training log](#training-logs).
 
 #### Training logs
 The files named train_log.csv document a brief history of the training. The first, second and third columns store training iteration, value of the loss function at said iteration and elapsed time in seconds, respectively.
