@@ -18,7 +18,7 @@ This repository contains implementations of various algorithms for solving high-
 
 
 ## Installation
-The code was tested on Python 3.11.12 (Google Colab) and uses tensorflow 2.14.0.
+The code was tested on Python 3.11.13 (Google Colab) and uses tensorflow 2.14.0.
 ```sh
 # Clone the repository
 git clone https://github.com/pinakm9/fp-solvers.git
@@ -117,11 +117,11 @@ fp-solvers/
 ### Modules
 The main Python classes can be found in the modules folder. The [Navigation](#navigation) section here documents the kind of functionality implemented in each file within the modules folder. Here we point to the three main classes for conducting the experiments reported in the papers. 
 #### LogSteadyStateSolver -> modules/lss_solver.py
-Learns the steady state of a Fokker-Planck equation by training a neural network. The training happens inside the "learn" method. To see example usage refer to colab/ring2D.ipynb, colab/ring4D.ipynb, colab/ring6D.ipynb, colab/ring8D.ipynb, colab/ring10D.ipynb, colab/L63.ipynb, colab/Thomas.ipynb etc. 
+Learns the steady state of a Fokker-Planck equation by training a neural network. The training happens inside the "learn" method. To see example usage, refer to colab/ring2D.ipynb, colab/ring4D.ipynb, colab/ring6D.ipynb, colab/ring8D.ipynb, colab/ring10D.ipynb, colab/L63.ipynb, colab/Thomas.ipynb etc. 
 #### MCProb -> modules/sim.py
-Computes the Monte-Carlo estimate for solution to a Fokker-Planck equation. compute_p2 is the main method for computing 2D marginal pdfs depicted in the papers. To see example usage refer to colab/L63_comparison.ipynb, colab/Thomas_comparison.ipynb, colab/L63_time.ipynb, colab/Thomas_time.ipynb, colab/ring10D_time.ipynb, colab/ring2D_error.ipynb, colab/L63_filter.ipynb, colab/L63_pf.ipynb etc. 
+Computes the Monte-Carlo estimate for solution to a Fokker-Planck equation. compute_p2 is the main method for computing 2D marginal pdfs depicted in the papers. To see example usage, refer to colab/L63_comparison.ipynb, colab/Thomas_comparison.ipynb, colab/L63_time.ipynb, colab/Thomas_time.ipynb, colab/ring10D_time.ipynb, colab/ring2D_error.ipynb, colab/L63_filter.ipynb, colab/L63_pf.ipynb etc. 
 #### FK32 -> modules/sim.py
-Computes the time-dependent solution of 3D Fokker-Planck equations combing a neural network steady state with the Feynman-Kac formula. calc_2D_prob is the main method for computing 2D marginal densities (the "32" in "FK32" refers to the 3D state and 2D marginals). To see example usage refer to colab/L63_time.ipynb, colab/Thomas_time.ipynb etc. Another useful method, in the context of filtering, is calc_2D_prob_weighted which uses the 2D marginals as priors and computes the posteriors using a weight/observation likelihood function. To see example usage refer to see colab/L63_filter.ipynb
+Computes the time-dependent solution of 3D Fokker-Planck equations combining a neural network steady state with the Feynman-Kac formula. calc_2D_prob is the main method for computing 2D marginal densities (the "32" in "FK32" refers to the 3D state and 2D marginals). To see example usage, refer to colab/L63_time.ipynb, colab/Thomas_time.ipynb etc. Another useful method, in the context of filtering, is calc_2D_prob_weighted which uses the 2D marginals as priors and computes the posteriors using a weight/observation likelihood function. To see example usage, refer to colab/L63_filter.ipynb.
 
 
 ### Data
