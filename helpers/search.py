@@ -80,3 +80,33 @@ def search_string_in_files(folder_path, search_str, context=1, max_matches=None,
         print(output)
         if max_matches and match_count > max_matches:
             print(f"\n⚠️ Showing only the first {max_matches} matches.")
+
+            
+            
+
+
+def list_files_with_name_match(folder_path, search_str, extensions=None, recursive=True, case_insensitive=True):
+    matches = []
+    search_str = search_str.lower() if case_insensitive else search_str
+
+    walk = os.walk(folder_path) if recursive else [(folder_path, [], os.listdir(folder_path))]
+
+    for root, _, files in walk:
+        for file in files:
+            if extensions and not file.endswith(tuple(extensions)):
+                continue
+
+            name_to_check = file.lower() if case_insensitive else file
+            if search_str in name_to_check:
+                full_path = os.path.join(root, file)
+                matches.append(full_path)
+
+    # Print results
+    for i, path in enumerate(matches, start=1):
+        print(f"{i:2d}. {path}")
+
+    print(f"\n✅ Found {len(matches)} matching files.")
+    return matches
+
+
+
