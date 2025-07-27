@@ -22,7 +22,7 @@ The code was tested on Python 3.11.13 (Google Colab) and uses tensorflow 2.14.0.
 ```sh
 # Clone the repository
 git clone https://github.com/pinakm9/fp-solvers.git
-cd repository
+cd fp-solvers
 
 # Install dependencies
 pip install -r requirements.txt 
